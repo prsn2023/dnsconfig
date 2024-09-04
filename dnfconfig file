@@ -1,0 +1,134 @@
+Dns config  rhel9
+
+
+ hostnamectl set-hostname server1.example.com
+
+  dnf -y install bind bind-utils
+systemctl enable named --now
+ systemctl status named
+
+cp /etc/named.conf /etc/named.conf.bak
+
+
+vim /etc/named.conf
+
+options {
+//      listen-on port 53 { 127.0.0.1; };
+//      listen-on-v6 port 53 { ::1; };
+        directory       "/var/named";
+        dump-file       "/var/named/data/cache_dump.db";
+        statistics-file "/var/named/data/named_stats.txt";
+        memstatistics-file "/var/named/data/named_mem_stats.txt";
+        secroots-file   "/var/named/data/named.secroots";
+        recursing-file  "/var/named/data/named.recursing";
+        allow-query     { localhost; 192.168.1.0/24; };
+
+or
+
+options {
+        listen-on port 53 { 127.0.0.1; 192.168.1.71; };
+        listen-on-v6 port 53 { ::1; };
+        directory       "/var/named";
+        dump-file       "/var/named/data/cache_dump.db";
+        statistics-file "/var/named/data/named_stats.txt";
+        memstatistics-file "/var/named/data/named_mem_stats.txt";
+        secroots-file   "/var/named/data/named.secroots";
+        recursing-file  "/var/named/data/named.recursing";
+        allow-query     { localhost; any; };
+
+
+//forward zone
+zone "example.com" IN {
+type master;
+file "example.forward.zone";
+allow-update { none; };
+allow-query { any; };
+};
+
+//reverse zone
+zone "1.168.192.in-addr.arpa" IN {
+type master;
+file "example.reverse.zone";
+allow-update { none; };
+allow-query { any; };
+};
+
+
+
+
+save and exit
+ cd /var/named/
+
+cp named.localhost example.forward.zone
+
+vim example.forward.zone 
+
+$TTL 1D
+@       IN SOA  @ seerver1.example.com.  (
+                                        0       ; serial
+                                        1D      ; refresh
+                                        1H      ; retry
+                                        1W      ; expire
+                                        3H )    ; minimum
+@       IN      NS      server1.example.com.
+
+server1 IN      A       192.168.1.71
+
+
+
+cp named.loopback example.reverse.zone
+
+vim example.reverse.zone
+
+$TTL 1D
+@       IN SOA  @ server1.example.com.  (
+                                        0       ; serial
+                                        1D      ; refresh
+                                        1H      ; retry
+                                        1W      ; expire
+                                        3H )    ; minimum
+@       IN      NS      server1.example.com.
+server1 IN      A        192.168.1.71
+
+71      IN      PTR     server1.example.com.
+~                                                
+
+ chown named:named example.reverse.zone 
+  chown named:named example.forward.zone 
+
+firewall-cmd --permanent –add-service=dns
+firewall-cmd --reload
+
+
+
+vim /etc/resolv.conf
+
+search example.com
+nameserver 192.168.1.71
+
+
+ named-checkconf
+named-checkzone example.com /var/named/example.forward.zone 
+ named-checkzone example.com /var/named/example.reverse.zone
+
+systemctl restart named
+
+nslookup server1.example.com
+nslookup 192.168.1.71
+
+ dig server1.example.com
+    dig -x server1.example.com
+    dig -x 192.168.1.71
+dig server1.example.com
+nslookup server1.example.com
+
+
+
+
+
+
+
+
+
+
+
